@@ -1,19 +1,33 @@
 <?php
 namespace App\Services;
-use Barryvdh\DomPDF\Facade\Pdf;
-use App\Models\Order;
 
-class PDFService {
-    public function generateInvoice(Order $order) {
-        $data = [
-            'order' => $order,
-            'items' => $order->items,
-            'restaurant_name' => 'Café Restaurant',
-            'restaurant_address' => '123 Rue de la Gastronomie, Paris',
-            'restaurant_phone' => '+33 1 23 45 67 89',
-            'restaurant_email' => 'contact@cafe-restaurant.com',
-        ];
-        $pdf = Pdf::loadView('pdf.invoice', $data);
-        return $pdf->output();
+use App\Models\Order;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\View;
+
+class PDFService
+{
+    public function generateInvoice(Order $order, $logoBase64 = null)
+    {
+        try {
+            $items = $order->items;
+            
+            // Prepare data for the view
+            $data = [
+                'order' => $order,
+                'items' => $items,
+                'logoBase64' => $logoBase64,
+            ];
+            
+            // Load the view from pdf folder
+            $pdf = Pdf::loadView('pdf.invoice', $data);
+            $pdf->setPaper('A4', 'portrait');
+            
+            return $pdf->output();
+            
+        } catch (\Exception $e) {
+            \Log::error('PDF generation error: ' . $e->getMessage());
+            throw $e;
+        }
     }
 }

@@ -12,42 +12,52 @@ const Header = ({ title, onRefresh }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [loading, setLoading] = useState(false);
   const intervalRef = useRef(null);
 
-  // Load preferences from localStorage
   const [preferences, setPreferences] = useState({
     newOrders: true,
     lowStock: true,
     systemUpdates: true,
   });
 
+  // Load preferences and saved notifications
   useEffect(() => {
-    const saved = localStorage.getItem('notification_preferences');
-    if (saved) {
-      try {
-        setPreferences(JSON.parse(saved));
-      } catch {}
+    const savedPrefs = localStorage.getItem('notification_preferences');
+    if (savedPrefs) {
+      try { setPreferences(JSON.parse(savedPrefs)); } catch {}
     }
+    const savedNotifs = localStorage.getItem('notifications');
+    if (savedNotifs) {
+      try { setNotifications(JSON.parse(savedNotifs)); } catch {}
+    }
+    const handleClear = () => {
+      setNotifications([]);
+      setUnreadCount(0);
+    };
+    window.addEventListener('notifications-cleared', handleClear);
+    return () => window.removeEventListener('notifications-cleared', handleClear);
   }, []);
 
-  // Fetch notifications from API
+  // Count unread
+  useEffect(() => {
+    setUnreadCount(notifications.filter(n => !n.read).length);
+  }, [notifications]);
+
+  // Fetch notifications with deduplication and save to localStorage
   const fetchNotifications = async () => {
     if (!preferences.newOrders && !preferences.lowStock && !preferences.systemUpdates) return;
 
-    setLoading(true);
     try {
       const newNotifications = [];
 
-      // Fetch recent orders
       if (preferences.newOrders) {
         const ordersRes = await orders.getAll({ limit: 5 });
         const recentOrders = ordersRes.data.data || [];
         recentOrders.forEach(order => {
-          const isNew = !notifications.some(n => n.id === `order-${order.id}`);
-          if (isNew) {
+          const id = `order-${order.id}`;
+          if (!notifications.some(n => n.id === id)) {
             newNotifications.push({
-              id: `order-${order.id}`,
+              id,
               type: 'new_order',
               message: `Nouvelle commande #${order.order_number}`,
               time: order.ordered_at,
@@ -58,15 +68,14 @@ const Header = ({ title, onRefresh }) => {
         });
       }
 
-      // Fetch low stock alerts
       if (preferences.lowStock) {
         const stockRes = await stock.getAlerts();
         const lowStockItems = stockRes.data || [];
         lowStockItems.forEach(product => {
-          const isNew = !notifications.some(n => n.id === `stock-${product.id}`);
-          if (isNew) {
+          const id = `stock-${product.id}`;
+          if (!notifications.some(n => n.id === id)) {
             newNotifications.push({
-              id: `stock-${product.id}`,
+              id,
               type: 'low_stock',
               message: `Stock critique : ${product.name} (${product.stock_quantity})`,
               time: new Date().toISOString(),
@@ -78,38 +87,48 @@ const Header = ({ title, onRefresh }) => {
       }
 
       if (newNotifications.length > 0) {
-        setNotifications(prev => [...newNotifications, ...prev]);
+        setNotifications(prev => {
+          const combined = [...newNotifications, ...prev];
+          const limited = combined.slice(0, 50);
+          localStorage.setItem('notifications', JSON.stringify(limited));
+          return limited;
+        });
         const first = newNotifications[0];
         toast.success(first.message);
       }
     } catch (error) {
       console.error('Error fetching notifications', error);
-    } finally {
-      setLoading(false);
     }
   };
 
-  // Poll for new notifications every 30 seconds
   useEffect(() => {
     fetchNotifications();
     intervalRef.current = setInterval(fetchNotifications, 30000);
     return () => clearInterval(intervalRef.current);
   }, [preferences]);
 
-  // Count unread
-  useEffect(() => {
-    setUnreadCount(notifications.filter(n => !n.read).length);
-  }, [notifications]);
-
   const markAsRead = (id) => {
-    setNotifications(prev =>
-      prev.map(n => (n.id === id ? { ...n, read: true } : n))
-    );
+    setNotifications(prev => {
+      const updated = prev.map(n => (n.id === id ? { ...n, read: true } : n));
+      localStorage.setItem('notifications', JSON.stringify(updated));
+      return updated;
+    });
   };
 
   const markAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    setNotifications(prev => {
+      const updated = prev.map(n => ({ ...n, read: true }));
+      localStorage.setItem('notifications', JSON.stringify(updated));
+      return updated;
+    });
     toast.success('Toutes les notifications marquées comme lues');
+  };
+
+  const clearAllNotifications = () => {
+    setNotifications([]);
+    localStorage.removeItem('notifications');
+    window.dispatchEvent(new Event('notifications-cleared'));
+    toast.success('Toutes les notifications supprimées');
   };
 
   const handleLogout = async () => {
@@ -148,7 +167,6 @@ const Header = ({ title, onRefresh }) => {
       </div>
 
       <div className="flex items-center gap-4">
-        {/* Refresh */}
         {onRefresh && (
           <button
             onClick={() => { onRefresh(); fetchNotifications(); }}
@@ -158,7 +176,6 @@ const Header = ({ title, onRefresh }) => {
           </button>
         )}
 
-        {/* Notifications Bell */}
         <div className="relative">
           <button
             onClick={() => setShowNotifications(!showNotifications)}
@@ -177,20 +194,25 @@ const Header = ({ title, onRefresh }) => {
               <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                 <span className="font-semibold text-gray-800">Notifications</span>
                 {notifications.length > 0 && (
-                  <button
-                    onClick={markAllAsRead}
-                    className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
-                  >
-                    Tout lire
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={markAllAsRead}
+                      className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                    >
+                      Tout lire
+                    </button>
+                    <button
+                      onClick={clearAllNotifications}
+                      className="text-xs text-red-600 hover:text-red-800 font-medium"
+                    >
+                      Tout supprimer
+                    </button>
+                  </div>
                 )}
               </div>
-
               <div className="max-h-64 overflow-y-auto">
                 {notifications.length === 0 ? (
-                  <div className="px-4 py-8 text-center text-gray-400 text-sm">
-                    Aucune notification
-                  </div>
+                  <div className="px-4 py-8 text-center text-gray-400 text-sm">Aucune notification</div>
                 ) : (
                   notifications.map(n => (
                     <div
@@ -216,7 +238,6 @@ const Header = ({ title, onRefresh }) => {
           )}
         </div>
 
-        {/* Avatar / User Dropdown */}
         <div className="relative">
           <button
             onClick={() => setShowDropdown(!showDropdown)}
@@ -250,8 +271,6 @@ const Header = ({ title, onRefresh }) => {
                 >
                   <FiUser className="text-gray-400" /> Profil
                 </Link>
-
-                {/* ✅ Link to notification settings page */}
                 <Link
                   to="/admin/notifications"
                   className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 transition-colors"
@@ -259,7 +278,6 @@ const Header = ({ title, onRefresh }) => {
                 >
                   <FiBell className="text-gray-400" /> Notifications
                 </Link>
-
                 <Link
                   to="/admin/settings"
                   className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 transition-colors"

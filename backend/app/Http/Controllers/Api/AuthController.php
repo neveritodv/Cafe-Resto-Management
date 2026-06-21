@@ -12,27 +12,40 @@ use Illuminate\Validation\ValidationException;
 class AuthController extends Controller
 {
     public function register(Request $request) {
-        // ... keep as is
-    }
-
-    public function login(Request $request) {
-        $request->validate([
-            'email' => 'required|email',
-            'password' => 'required',
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'password' => 'required|string|min:8|confirmed',
+            'role' => 'sometimes|in:admin,waiter,manager,customer',
         ]);
-
-        if (!Auth::attempt($request->only('email', 'password'))) {
-            throw ValidationException::withMessages([
-                'email' => ['Les identifiants sont incorrects.'],
-            ]);
-        }
-
-        $user = User::where('email', $request->email)->first();
-        $user->append('avatar_url');
+        $user = User::create([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'password' => Hash::make($validated['password']),
+            'role' => $validated['role'] ?? 'customer',
+        ]);
         $token = $user->createToken('auth_token')->plainTextToken;
-
-        return response()->json(['user' => $user, 'token' => $token]);
+        return response()->json(['user' => $user, 'token' => $token], 201);
     }
+
+public function login(Request $request) {
+    $request->validate([
+        'email' => 'required|email',
+        'password' => 'required',
+    ]);
+
+    if (!Auth::attempt($request->only('email', 'password'))) {
+        throw ValidationException::withMessages([
+            'email' => ['Les identifiants sont incorrects.'],
+        ]);
+    }
+
+    $user = User::where('email', $request->email)->first();
+    $user->append('avatar_url');
+    $token = $user->createToken('auth_token')->plainTextToken;
+
+    return response()->json(['user' => $user, 'token' => $token]);
+}
 
     public function logout(Request $request) {
         $request->user()->currentAccessToken()->delete();
@@ -43,6 +56,38 @@ class AuthController extends Controller
         $user = $request->user();
         $user->append('avatar_url');
         return response()->json($user);
+    }
+
+    public function updateProfile(Request $request) {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users,email,' . $request->user()->id,
+        ]);
+
+        $user = $request->user();
+        $user->name = $request->name;
+        $user->email = $request->email;
+        $user->save();
+
+        return response()->json($user);
+    }
+
+    public function changePassword(Request $request) {
+        $request->validate([
+            'current_password' => 'required|string',
+            'new_password' => 'required|string|min:8|confirmed',
+        ]);
+
+        $user = $request->user();
+
+        if (!Hash::check($request->current_password, $user->password)) {
+            return response()->json(['message' => 'Le mot de passe actuel est incorrect.'], 422);
+        }
+
+        $user->password = Hash::make($request->new_password);
+        $user->save();
+
+        return response()->json(['message' => 'Mot de passe mis à jour avec succès.']);
     }
 
     public function updateAvatar(Request $request) {

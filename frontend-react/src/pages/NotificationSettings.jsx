@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FiSave, FiBell, FiPackage, FiShoppingCart, FiRefreshCw } from 'react-icons/fi';
+import { FiSave, FiBell, FiPackage, FiShoppingCart, FiRefreshCw, FiTrash2, FiCheckCircle, FiX } from 'react-icons/fi';
 import Sidebar from '../components/common/Sidebar';
 import Header from '../components/common/Header';
 import toast from 'react-hot-toast';
@@ -10,15 +10,19 @@ const NotificationSettings = () => {
     lowStock: true,
     systemUpdates: true,
   });
+  const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  // Load preferences & notifications from localStorage
   useEffect(() => {
-    const saved = localStorage.getItem('notification_preferences');
-    if (saved) {
-      try {
-        setPreferences(JSON.parse(saved));
-      } catch {}
+    const savedPrefs = localStorage.getItem('notification_preferences');
+    if (savedPrefs) {
+      try { setPreferences(JSON.parse(savedPrefs)); } catch {}
+    }
+    const savedNotifs = localStorage.getItem('notifications');
+    if (savedNotifs) {
+      try { setNotifications(JSON.parse(savedNotifs)); } catch {}
     }
     setLoading(false);
   }, []);
@@ -32,6 +36,31 @@ const NotificationSettings = () => {
     localStorage.setItem('notification_preferences', JSON.stringify(preferences));
     toast.success('Préférences de notification enregistrées');
     setSaving(false);
+  };
+
+  // Clear all notifications
+  const clearAllNotifications = () => {
+    if (window.confirm('Supprimer toutes les notifications ?')) {
+      setNotifications([]);
+      localStorage.removeItem('notifications');
+      // Dispatch a custom event so Header knows to refresh
+      window.dispatchEvent(new Event('notifications-cleared'));
+      toast.success('Toutes les notifications ont été supprimées');
+    }
+  };
+
+  // Mark all as read
+  const markAllAsRead = () => {
+    const updated = notifications.map(n => ({ ...n, read: true }));
+    setNotifications(updated);
+    localStorage.setItem('notifications', JSON.stringify(updated));
+    toast.success('Toutes les notifications marquées comme lues');
+  };
+
+  // Format date
+  const formatDate = (iso) => {
+    const date = new Date(iso);
+    return date.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
 
   if (loading) {
@@ -49,12 +78,13 @@ const NotificationSettings = () => {
     <div className="flex h-screen bg-gray-50">
       <Sidebar />
       <div className="flex-1 ml-64 overflow-y-auto">
-        <Header title="Paramètres de notification" />
-        <main className="p-8 max-w-3xl mx-auto">
+        <Header title="Notifications" />
+        <main className="p-8 max-w-3xl mx-auto space-y-6">
+          {/* Preferences card */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
             <div className="flex items-center gap-3 mb-6">
               <FiBell className="text-2xl text-indigo-600" />
-              <h2 className="text-xl font-semibold text-gray-800">Notifications</h2>
+              <h2 className="text-xl font-semibold text-gray-800">Préférences de notification</h2>
             </div>
             <p className="text-gray-500 text-sm mb-6">
               Choisissez les types de notifications que vous souhaitez recevoir.
@@ -73,9 +103,7 @@ const NotificationSettings = () => {
                   onClick={() => handleToggle('newOrders')}
                   className={`relative w-12 h-6 rounded-full transition-colors ${preferences.newOrders ? 'bg-indigo-600' : 'bg-gray-300'}`}
                 >
-                  <span
-                    className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${preferences.newOrders ? 'translate-x-6' : 'translate-x-0'}`}
-                  />
+                  <span className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${preferences.newOrders ? 'translate-x-6' : 'translate-x-0'}`} />
                 </button>
               </div>
 
@@ -91,9 +119,7 @@ const NotificationSettings = () => {
                   onClick={() => handleToggle('lowStock')}
                   className={`relative w-12 h-6 rounded-full transition-colors ${preferences.lowStock ? 'bg-indigo-600' : 'bg-gray-300'}`}
                 >
-                  <span
-                    className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${preferences.lowStock ? 'translate-x-6' : 'translate-x-0'}`}
-                  />
+                  <span className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${preferences.lowStock ? 'translate-x-6' : 'translate-x-0'}`} />
                 </button>
               </div>
 
@@ -109,9 +135,7 @@ const NotificationSettings = () => {
                   onClick={() => handleToggle('systemUpdates')}
                   className={`relative w-12 h-6 rounded-full transition-colors ${preferences.systemUpdates ? 'bg-indigo-600' : 'bg-gray-300'}`}
                 >
-                  <span
-                    className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${preferences.systemUpdates ? 'translate-x-6' : 'translate-x-0'}`}
-                  />
+                  <span className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${preferences.systemUpdates ? 'translate-x-6' : 'translate-x-0'}`} />
                 </button>
               </div>
             </div>
@@ -125,6 +149,79 @@ const NotificationSettings = () => {
                 <FiSave /> {saving ? 'Enregistrement...' : 'Enregistrer les préférences'}
               </button>
             </div>
+          </div>
+
+          {/* Manage notifications card */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <FiBell className="text-2xl text-indigo-600" />
+                <h2 className="text-xl font-semibold text-gray-800">Gérer les notifications</h2>
+              </div>
+              <div className="flex gap-2">
+                {notifications.length > 0 && (
+                  <>
+                    <button
+                      onClick={markAllAsRead}
+                      className="flex items-center gap-1 px-4 py-2 text-sm text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                    >
+                      <FiCheckCircle /> Tout lire
+                    </button>
+                    <button
+                      onClick={clearAllNotifications}
+                      className="flex items-center gap-1 px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      <FiTrash2 /> Tout supprimer
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {notifications.length === 0 ? (
+              <div className="text-center py-8 text-gray-400">
+                <FiBell className="text-4xl mx-auto mb-2 text-gray-300" />
+                <p>Aucune notification</p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {notifications.map(n => (
+                  <div
+                    key={n.id}
+                    className={`flex items-center justify-between p-3 rounded-xl border ${!n.read ? 'bg-indigo-50/50 border-indigo-100' : 'bg-gray-50 border-gray-100'}`}
+                  >
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-800">{n.message}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs text-gray-400">{formatDate(n.time)}</span>
+                        {n.type === 'new_order' && (
+                          <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Commande</span>
+                        )}
+                        {n.type === 'low_stock' && (
+                          <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">Stock</span>
+                        )}
+                        {!n.read && (
+                          <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">Nouveau</span>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const updated = notifications.map(notif =>
+                          notif.id === n.id ? { ...notif, read: true } : notif
+                        );
+                        setNotifications(updated);
+                        localStorage.setItem('notifications', JSON.stringify(updated));
+                      }}
+                      className="p-1 text-gray-400 hover:text-indigo-600 rounded transition-colors"
+                      title="Marquer comme lu"
+                    >
+                      <FiCheckCircle className="text-sm" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </main>
       </div>

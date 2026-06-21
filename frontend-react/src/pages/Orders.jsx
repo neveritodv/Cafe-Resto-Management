@@ -171,15 +171,63 @@ const Orders = () => {
   const formatCurrency = (value) =>
     new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(value);
 
-  const getStatusColor = (status) =>
-    ({
+  const getStatusColor = (status) => {
+    const colors = {
       pending: 'bg-yellow-100 text-yellow-700',
       preparing: 'bg-blue-100 text-blue-700',
       ready: 'bg-green-100 text-green-700',
       served: 'bg-indigo-100 text-indigo-700',
       paid: 'bg-emerald-100 text-emerald-700',
       cancelled: 'bg-red-100 text-red-700',
-    }[status] || 'bg-gray-100 text-gray-700');
+    };
+    return colors[status] || 'bg-gray-100 text-gray-700';
+  };
+
+  const getStatusLabel = (status) => {
+    const labels = {
+      pending: 'En attente',
+      preparing: 'En préparation',
+      ready: 'Prêt',
+      served: 'Servi',
+      paid: 'Payé',
+      cancelled: 'Annulé',
+    };
+    return labels[status] || status;
+  };
+
+  const getTypeLabel = (type) => {
+    const labels = {
+      dine_in: 'Sur place',
+      takeaway: 'À emporter',
+      delivery: 'Livraison',
+    };
+    return labels[type] || type;
+  };
+
+  const getPaymentLabel = (method) => {
+    const labels = {
+      cash: 'Espèces',
+      card: 'Carte bancaire',
+      qr: 'QR Code',
+    };
+    return labels[method] || method;
+  };
+
+  const getNextStatus = (currentStatus) => {
+    const flow = {
+      pending: 'preparing',
+      preparing: 'ready',
+      ready: 'served',
+      served: 'paid',
+      paid: null,
+      cancelled: null,
+    };
+    return flow[currentStatus] || null;
+  };
+
+  const canAdvanceStatus = (status) => {
+    return status !== 'paid' && status !== 'cancelled' && getNextStatus(status) !== null;
+  };
 
   if (loading) return <div className="ml-64 flex items-center justify-center h-screen"><div className="w-12 h-12 border-4 border-indigo-500/30 border-t-indigo-600 rounded-full animate-spin"></div></div>;
 
@@ -251,14 +299,14 @@ const Orders = () => {
                   {orderList.map((order) => (
                     <tr key={order.id} className="hover:bg-gray-50/50 transition-colors">
                       <td className="px-6 py-4 font-medium text-gray-800">{order.order_number}</td>
-                      <td className="px-6 py-4 text-sm text-gray-500 capitalize">{order.type}</td>
+                      <td className="px-6 py-4 text-sm text-gray-500 capitalize">{getTypeLabel(order.type)}</td>
                       <td className="px-6 py-4">
-                        <span className={`text-xs px-3 py-1 rounded-full ${getStatusColor(order.status)}`}>
-                          {order.status_label}
+                        <span className={`text-xs px-3 py-1 rounded-full font-medium ${getStatusColor(order.status)}`}>
+                          {getStatusLabel(order.status)}
                         </span>
                       </td>
                       <td className="px-6 py-4 font-semibold text-gray-800">{formatCurrency(order.total)}</td>
-                      <td className="px-6 py-4 text-sm text-gray-500 capitalize">{order.payment_method}</td>
+                      <td className="px-6 py-4 text-sm text-gray-500 capitalize">{getPaymentLabel(order.payment_method)}</td>
                       <td className="px-6 py-4 text-sm text-gray-500">
                         {new Date(order.ordered_at).toLocaleString('fr-FR')}
                       </td>
@@ -271,38 +319,39 @@ const Orders = () => {
                           >
                             <FiPrinter />
                           </button>
+                          
+                          {canAdvanceStatus(order.status) && (
+                            <button
+                              onClick={() => {
+                                const nextStatus = getNextStatus(order.status);
+                                if (nextStatus) {
+                                  updateOrderStatus(order.id, nextStatus);
+                                }
+                              }}
+                              className="p-1.5 text-gray-400 hover:text-green-600 rounded-lg hover:bg-green-50 transition-all"
+                              title={`Passer à ${getStatusLabel(getNextStatus(order.status))}`}
+                            >
+                              <FiCheck />
+                            </button>
+                          )}
+                          
                           {order.status !== 'paid' && order.status !== 'cancelled' && (
-                            <>
-                              <button
-                                onClick={() => {
-                                  const statusMap = {
-                                    pending: 'preparing',
-                                    preparing: 'ready',
-                                    ready: 'served',
-                                    served: 'paid',
-                                  };
-                                  updateOrderStatus(order.id, statusMap[order.status] || 'paid');
-                                }}
-                                className="p-1.5 text-gray-400 hover:text-green-600 rounded-lg hover:bg-green-50 transition-all"
-                                title="Avancer"
-                              >
-                                <FiCheck />
-                              </button>
-                              <button
-                                onClick={() => {
-                                  if (confirm('Annuler cette commande ?')) {
-                                    orders.cancel(order.id).then(() => {
-                                      toast.success('Commande annulée');
-                                      fetchOrders();
-                                    });
-                                  }
-                                }}
-                                className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-all"
-                                title="Annuler"
-                              >
-                                <FiX />
-                              </button>
-                            </>
+                            <button
+                              onClick={() => {
+                                if (window.confirm('Annuler cette commande ?')) {
+                                  orders.cancel(order.id).then(() => {
+                                    toast.success('Commande annulée');
+                                    fetchOrders();
+                                  }).catch(() => {
+                                    toast.error('Erreur lors de l\'annulation');
+                                  });
+                                }
+                              }}
+                              className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-all"
+                              title="Annuler"
+                            >
+                              <FiX />
+                            </button>
                           )}
                         </div>
                       </td>

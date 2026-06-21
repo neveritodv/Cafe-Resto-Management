@@ -1,22 +1,45 @@
+// src/pages/CustomerLogin.jsx
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { FiMail, FiLock, FiEye, FiEyeOff } from 'react-icons/fi';
+import { useAuth } from '../context/AuthContext';
+import toast from 'react-hot-toast';
 
-const Login = () => {
+const CustomerLogin = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  const redirectParam = searchParams.get('redirect') || '/';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
     setLoading(true);
-    const result = await login(email, password);
-    setLoading(false);
-    if (result.success) navigate('/admin');
+    try {
+      const result = await login(email, password);
+      if (result.success) {
+        const user = result.user;
+        if (user?.role === 'admin' || user?.role === 'manager') {
+          toast.success('Bienvenue dans l\'administration');
+          navigate('/admin');
+        } else {
+          toast.success('Bienvenue !');
+          navigate(redirectParam);
+        }
+      } else {
+        setError('Email ou mot de passe incorrect. Veuillez réessayer.');
+      }
+    } catch (err) {
+      setError('Une erreur est survenue. Veuillez réessayer.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -27,13 +50,19 @@ const Login = () => {
             <div className="flex justify-center mb-4">
               <img src="/logo.png" alt="RestauFlow" className="h-16 w-auto" />
             </div>
-            <h1 className="text-3xl font-bold text-gray-800">RestauFlow</h1>
-            <p className="text-gray-500 mt-1">Gestion & Caisse Automatique</p>
+            <h1 className="text-3xl font-bold text-gray-800">Bonjour !</h1>
+            <p className="text-gray-500 mt-1">Connectez-vous pour commander</p>
           </div>
+
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl">
+              {error}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Adresse email</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
               <div className="relative">
                 <FiMail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
@@ -41,7 +70,7 @@ const Login = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-12 pr-4 py-3.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all bg-white/50"
-                  placeholder="exemple@email.com"
+                  placeholder="client@email.com"
                   required
                 />
               </div>
@@ -85,8 +114,16 @@ const Login = () => {
             </button>
           </form>
 
-          <div className="mt-6 text-center text-sm text-gray-400">
-            <p>Démo: <span className="font-mono bg-gray-100 px-2 py-1 rounded">admin@cafe.com</span> / <span className="font-mono bg-gray-100 px-2 py-1 rounded">password</span></p>
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-500">
+              Pas encore de compte ?{' '}
+              <Link 
+                to={`/register${redirectParam ? `?redirect=${encodeURIComponent(redirectParam)}` : ''}`}
+                className="text-indigo-600 hover:underline font-medium"
+              >
+                Créer un compte
+              </Link>
+            </p>
           </div>
         </div>
       </div>
@@ -94,4 +131,4 @@ const Login = () => {
   );
 };
 
-export default Login;
+export default CustomerLogin;

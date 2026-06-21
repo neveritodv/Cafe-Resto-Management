@@ -1,56 +1,133 @@
+// src/App.jsx
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { Toaster } from 'react-hot-toast';
-import { AuthProvider } from './context/AuthContext';
-import PrivateRoute from './components/common/PrivateRoute';
 
-// Public pages
+// Customer pages
 import CustomerMenu from './pages/CustomerMenu';
-import Login from './pages/Login';
+import CustomerLogin from './pages/CustomerLogin';
+import CustomerRegister from './pages/CustomerRegister';
+import CustomerProfile from './pages/CustomerProfile';
+import CustomerSettings from './pages/CustomerSettings';
+import CustomerNotifications from './pages/CustomerNotifications';
 
 // Admin pages
+import AdminLogin from './pages/AdminLogin';
 import Dashboard from './pages/Dashboard';
-import Menu from './pages/Menu';
 import Orders from './pages/Orders';
-import Stock from './pages/Stock';
-import Reports from './pages/Reports';
-import Settings from './pages/Settings';
 import Profile from './pages/Profile';
-import NotificationSettings from './pages/NotificationSettings'; // ✅ NEW
+import Settings from './pages/Settings';
+import Reports from './pages/Reports';
+import Stock from './pages/Stock';
+import Menu from './pages/Menu';
+import NotificationSettings from './pages/NotificationSettings';
+
+// Protected route component
+const ProtectedRoute = ({ children, allowedRoles }) => {
+  const { user, loading } = useAuth();
+  
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="w-12 h-12 border-4 border-indigo-500/30 border-t-indigo-600 rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+  
+  if (!user) {
+    return <Navigate to="/login" />;
+  }
+  
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
+    return <Navigate to="/" />;
+  }
+  
+  return children;
+};
+
+// Main App component
+const AppContent = () => {
+  return (
+    <BrowserRouter>
+      <div className="min-h-screen bg-gray-50">
+        <Toaster position="top-right" />
+        <Routes>
+          {/* Customer Routes */}
+          <Route path="/" element={<CustomerMenu />} />
+          <Route path="/login" element={<CustomerLogin />} />
+          <Route path="/register" element={<CustomerRegister />} />
+          <Route path="/profile" element={
+            <ProtectedRoute>
+              <CustomerProfile />
+            </ProtectedRoute>
+          } />
+          <Route path="/customer/settings" element={
+            <ProtectedRoute>
+              <CustomerSettings />
+            </ProtectedRoute>
+          } />
+          <Route path="/customer/notifications" element={
+            <ProtectedRoute>
+              <CustomerNotifications />
+            </ProtectedRoute>
+          } />
+          
+          {/* Admin Routes */}
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/admin" element={
+            <ProtectedRoute allowedRoles={['admin', 'manager']}>
+              <Dashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/orders" element={
+            <ProtectedRoute allowedRoles={['admin', 'manager']}>
+              <Orders />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/profile" element={
+            <ProtectedRoute allowedRoles={['admin', 'manager']}>
+              <Profile />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/settings" element={
+            <ProtectedRoute allowedRoles={['admin', 'manager']}>
+              <Settings />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/reports" element={
+            <ProtectedRoute allowedRoles={['admin', 'manager']}>
+              <Reports />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/stock" element={
+            <ProtectedRoute allowedRoles={['admin', 'manager']}>
+              <Stock />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/menu" element={
+            <ProtectedRoute allowedRoles={['admin', 'manager']}>
+              <Menu />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/notifications" element={
+            <ProtectedRoute allowedRoles={['admin', 'manager']}>
+              <NotificationSettings />
+            </ProtectedRoute>
+          } />
+          
+          {/* Fallback - redirect to home */}
+          <Route path="*" element={<Navigate to="/" />} />
+        </Routes>
+      </div>
+    </BrowserRouter>
+  );
+};
 
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <Toaster position="top-right" toastOptions={{ duration: 3000 }} />
-        <Routes>
-          {/* Public routes */}
-          <Route path="/" element={<CustomerMenu />} />
-          <Route path="/login" element={<Login />} />
-
-          {/* Admin routes */}
-          <Route path="/admin" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
-          <Route path="/admin/menu" element={<PrivateRoute><Menu /></PrivateRoute>} />
-          <Route path="/admin/orders" element={<PrivateRoute><Orders /></PrivateRoute>} />
-          <Route path="/admin/stock" element={<PrivateRoute><Stock /></PrivateRoute>} />
-          <Route path="/admin/reports" element={<PrivateRoute><Reports /></PrivateRoute>} />
-          <Route path="/admin/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
-          <Route path="/admin/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
-          <Route path="/admin/notifications" element={<PrivateRoute><NotificationSettings /></PrivateRoute>} /> {/* ✅ NEW */}
-
-          {/* Redirect old paths */}
-          <Route path="/dashboard" element={<Navigate to="/admin" replace />} />
-          <Route path="/menu" element={<Navigate to="/admin/menu" replace />} />
-          <Route path="/orders" element={<Navigate to="/admin/orders" replace />} />
-          <Route path="/stock" element={<Navigate to="/admin/stock" replace />} />
-          <Route path="/reports" element={<Navigate to="/admin/reports" replace />} />
-          <Route path="/settings" element={<Navigate to="/admin/settings" replace />} />
-          <Route path="/profile" element={<Navigate to="/admin/profile" replace />} />
-          <Route path="/notifications" element={<Navigate to="/admin/notifications" replace />} />
-
-          <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
-      </Router>
+      <AppContent />
     </AuthProvider>
   );
 }
