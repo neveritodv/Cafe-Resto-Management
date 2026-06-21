@@ -1,0 +1,28 @@
+# Backend (Laravel)
+backend/vendor/
+backend/.env
+backend/storage/*.key
+backend/public/storage
+backend/storage/logs/*.log
+backend/.phpunit.result.cache
+
+# Frontend (React)
+frontend-react/node_modules/
+frontend-react/dist/
+frontend-react/.env.local
+frontend-react/.env.development.local
+frontend-react/.env.test.local
+frontend-react/.env.production.local
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Other
+*.log
+*.sqlite
+*.sqlite3
